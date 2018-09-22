@@ -6,16 +6,34 @@ import scala.language.higherKinds
 import scalaz.{Apply, Isomorphism => iso, \/}
 import iso.<=>
 
+abstract class TCCombine[F[_], TL <: TList, Cop, Prod](
+    copIso: (ICop[TL] <=> Cop),
+    prodIso: (IProd[TL] <=> Prod)) {
+  def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B]
+  def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B]
+  def mkDivide[B](f: B => Prod)(implicit a: Divide[F]): F[B]
+  def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B]
+
+  def chooseI(implicit d: Decidable[F]): F[ICop[TL]] = mkChoose(copIso.to(_))
+  def choose(implicit d: Decidable[F]): F[Cop] = mkChoose(identity _)
+
+  def altI(implicit a: Alt[F]): F[ICop[TL]] = mkAlt(copIso.from(_))
+  def alt(implicit a: Alt[F]): F[Cop] = mkAlt(identity _)
+
+  def divideI(implicit d: Divide[F]): F[IProd[TL]] = mkDivide(prodIso.to(_))
+  def divide(implicit d: Divide[F]): F[Prod] = mkDivide(identity _)
+
+  def applyI(implicit a: Apply[F]): F[IProd[TL]] = mkApply(prodIso.from(_))
+  def apply(implicit a: Apply[F]): F[Prod] = mkApply(identity _)
+}
+
 trait TC {
   type TL <: TList
   type Cop
   type Prod
   def copIso: (ICop[TL] <=> Cop)
   def prodIso: (IProd[TL] <=> Prod)
-  // def choose[F[_]](implicit d: Decidable[F]): F[ICop[TL]]
-  // def alt[F[_]](implicit a: Alt[F]): F[ICop[TL]]
-  // def divide[F[_]](implicit a: Divide[F]): F[IProd[TL]]
-  // def apply[F[_]](implicit a: Apply[F]): F[IProd[TL]]
+  def inj[A](a: A)(implicit I: ICop.Inject[A, ICop[TL]]): ICop[TL] = I.inj(a)
 }
 
 trait TC1[A1] extends TC {
@@ -40,14 +58,17 @@ trait TC2[A1, A2] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to2T(_: IProd[TL]),
     Prods.from2T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2]): F[ICop[TL]] =
-    d.choose2(a1, a2)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2]): F[ICop[TL]] =
-    a.altly2(a1, a2)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2]): F[IProd[TL]] =
-    d.divide2(a1, a2)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2]): F[IProd[TL]] =
-    d.apply2(a1, a2)((a, b) => prodIso.from((a, b)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose2(a1, a2)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly2(a1, a2)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide2(a1, a2)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply2(a1, a2)((a, b) => f((a, b)))
+    }
 }
 
 trait TC3[A1, A2, A3] extends TC {
@@ -60,15 +81,17 @@ trait TC3[A1, A2, A3] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to3T(_: IProd[TL]),
     Prods.from3T(_: Prod))
-  def choose[F[_]](
-      implicit d: Decidable[F], a1: F[A1], a2: F[A2], a3: F[A3]): F[ICop[TL]] =
-    d.choose3(a1, a2, a3)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3]): F[ICop[TL]] =
-    a.altly3(a1, a2, a3)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3]): F[IProd[TL]] =
-    d.divide3(a1, a2, a3)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3]): F[IProd[TL]] =
-    d.apply3(a1, a2, a3)((a, b, c) => prodIso.from((a, b, c)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose3(a1, a2, a3)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly3(a1, a2, a3)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide3(a1, a2, a3)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply3(a1, a2, a3)((a, b, c) => f((a, b, c)))
+    }
 }
 
 trait TC4[A1, A2, A3, A4] extends TC {
@@ -81,15 +104,17 @@ trait TC4[A1, A2, A3, A4] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to4T(_: IProd[TL]),
     Prods.from4T(_: Prod))
-  def choose[F[_]](
-      implicit d: Decidable[F], a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): F[ICop[TL]] =
-    d.choose4(a1, a2, a3, a4)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): F[ICop[TL]] =
-    a.altly4(a1, a2, a3, a4)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): F[IProd[TL]] =
-    d.divide4(a1, a2, a3, a4)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): F[IProd[TL]] =
-    d.apply4(a1, a2, a3, a4)((a, b, c, d) => prodIso.from((a, b, c, d)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose4(a1, a2, a3, a4)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly4(a1, a2, a3, a4)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide4(a1, a2, a3, a4)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply4(a1, a2, a3, a4)((i1, i2, i3, i4) => f((i1, i2, i3, i4)))
+    }
 }
 
 trait TC5[A1, A2, A3, A4, A5] extends TC {
@@ -102,18 +127,18 @@ trait TC5[A1, A2, A3, A4, A5] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to5T(_: IProd[TL]),
     Prods.from5T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5]): F[ICop[TL]] =
-    d.choose5(a1, a2, a3, a4, a5)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5]): F[ICop[TL]] =
-    a.altly5(a1, a2, a3, a4, a5)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5]): F[IProd[TL]] =
-    d.divide5(a1, a2, a3, a4, a5)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5]): F[IProd[TL]] =
-    d.apply5(a1, a2, a3, a4, a5)((a, b, c, d, e) => prodIso.from((a, b, c, d, e)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose5(a1, a2, a3, a4, a5)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly5(a1, a2, a3, a4, a5)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide5(a1, a2, a3, a4, a5)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply5(a1, a2, a3, a4, a5)((i1, i2, i3, i4, i5) => f((i1, i2, i3, i4, i5)))
+    }
 }
 
 trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
@@ -126,18 +151,18 @@ trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to6T(_: IProd[TL]),
     Prods.from6T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6]): F[ICop[TL]] =
-    d.choose6(a1, a2, a3, a4, a5, a6)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6]): F[ICop[TL]] =
-    a.altly6(a1, a2, a3, a4, a5, a6)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6]): F[IProd[TL]] =
-    d.divide6(a1, a2, a3, a4, a5, a6)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6]): F[IProd[TL]] =
-    d.apply6(a1, a2, a3, a4, a5, a6)((a, b, c, d, e, f) => prodIso.from((a, b, c, d, e, f)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose6(a1, a2, a3, a4, a5, a6)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly6(a1, a2, a3, a4, a5, a6)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide6(a1, a2, a3, a4, a5, a6)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply6(a1, a2, a3, a4, a5, a6)((i1, i2, i3, i4, i5, i6) => f((i1, i2, i3, i4, i5, i6)))
+    }
 }
 
 trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
@@ -150,19 +175,19 @@ trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to7T(_: IProd[TL]),
     Prods.from7T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7]): F[ICop[TL]] =
-    d.choose7(a1, a2, a3, a4, a5, a6, a7)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7]): F[ICop[TL]] =
-    a.altly7(a1, a2, a3, a4, a5, a6, a7)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7]): F[IProd[TL]] =
-    d.divide7(a1, a2, a3, a4, a5, a6, a7)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7]): F[IProd[TL]] =
-    d.apply7(a1, a2, a3, a4, a5, a6, a7)((a, b, c, d, e, f, g) => prodIso.from((a, b, c, d, e, f, g)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose7(a1, a2, a3, a4, a5, a6, a7)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly7(a1, a2, a3, a4, a5, a6, a7)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide7(a1, a2, a3, a4, a5, a6, a7)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply7(a1, a2, a3, a4, a5, a6, a7)(
+          (i1, i2, i3, i4, i5, i6, i7) => f((i1, i2, i3, i4, i5, i6, i7)))
+    }
 }
 
 trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
@@ -175,22 +200,19 @@ trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to8T(_: IProd[TL]),
     Prods.from8T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8]): F[ICop[TL]] =
-    d.choose8(a1, a2, a3, a4, a5, a6, a7, a8)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8]): F[ICop[TL]] =
-    a.altly8(a1, a2, a3, a4, a5, a6, a7, a8)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8]): F[IProd[TL]] =
-    d.divide8(a1, a2, a3, a4, a5, a6, a7, a8)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8]): F[IProd[TL]] =
-    d.apply8(a1, a2, a3, a4, a5, a6, a7, a8)((a, b, c, d, e, f, g, h) =>
-      prodIso.from((a, b, c, d, e, f, g, h)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose8(a1, a2, a3, a4, a5, a6, a7, a8)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly8(a1, a2, a3, a4, a5, a6, a7, a8)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide8(a1, a2, a3, a4, a5, a6, a7, a8)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply8(a1, a2, a3, a4, a5, a6, a7, a8)(
+          (i1, i2, i3, i4, i5, i6, i7, i8) => f((i1, i2, i3, i4, i5, i6, i7, i8)))
+    }
 }
 
 trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
@@ -203,23 +225,20 @@ trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to9T(_: IProd[TL]),
     Prods.from9T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9]): F[ICop[TL]] =
-    d.choose9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9]): F[ICop[TL]] =
-    a.altly9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9]): F[IProd[TL]] =
-    d.divide9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9]): F[IProd[TL]] =
-    d.apply9(a1, a2, a3, a4, a5, a6, a7, a8, a9)((a, b, c, d, e, f, g, h, i) =>
-      prodIso.from((a, b, c, d, e, f, g, h, i)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9) => f((i1, i2, i3, i4, i5, i6, i7, i8, i9)))
+    }
 }
 
 trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
@@ -232,23 +251,21 @@ trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to10T(_: IProd[TL]),
     Prods.from10T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9], a10: F[A10]): F[ICop[TL]] =
-    d.choose10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9], a10: F[A10]): F[ICop[TL]] =
-    a.altly10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9], a10: F[A10]): F[IProd[TL]] =
-    d.divide10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9], a10: F[A10]): F[IProd[TL]] =
-    d.apply10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)((a, b, c, d, e, f, g, h, i, j) =>
-      prodIso.from((a, b, c, d, e, f, g, h, i, j)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10)))
+    }
 }
 
 trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
@@ -261,25 +278,21 @@ trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to11T(_: IProd[TL]),
     Prods.from11T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9], a10: F[A10],
-                   a11: F[A11]): F[ICop[TL]] =
-    d.choose11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9], a10: F[A10], a11: F[A11]): F[ICop[TL]] =
-    a.altly11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11]): F[IProd[TL]] =
-    d.divide11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11]): F[IProd[TL]] =
-    d.apply11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(
-      (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11) =>
-        prodIso.from((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10], a11: F[A11]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11)))
+    }
 }
 
 trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
@@ -292,27 +305,21 @@ trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to12T(_: IProd[TL]),
     Prods.from12T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9], a10: F[A10],
-                   a11: F[A11], a12: F[A12]): F[ICop[TL]] =
-    d.choose12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12]): F[ICop[TL]] =
-    a.altly12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                   a12: F[A12]): F[IProd[TL]] =
-    d.divide12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                  a12: F[A12]): F[IProd[TL]] =
-    d.apply12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(
-      (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12) =>
-        prodIso.from((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        a.apply12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12)))
+    }
 }
 
 trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
@@ -327,27 +334,22 @@ trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to13T(_: IProd[TL]),
     Prods.from13T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9], a10: F[A10],
-                   a11: F[A11], a12: F[A12], a13: F[A13]): F[ICop[TL]] =
-    d.choose13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12], a13: F[A13]): F[ICop[TL]] =
-    a.altly13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                   a12: F[A12], a13: F[A13]): F[IProd[TL]] =
-    d.divide13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                  a12: F[A12], a13: F[A13]): F[IProd[TL]] =
-    ApplyExt.apply13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(
-      (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13) =>
-        prodIso.from((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
+                    a13: F[A13]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        ApplyExt.apply13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13)))
+    }
 }
 
 trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends TC {
@@ -362,27 +364,20 @@ trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends 
   val prodIso = iso.IsoSet(
     Prods.to14T(_: IProd[TL]),
     Prods.from14T(_: Prod))
-  def choose[F[_]](implicit d: Decidable[F], a1: F[A1], a2: F[A2],
-                   a3: F[A3], a4: F[A4], a5: F[A5], a6: F[A6],
-                   a7: F[A7], a8: F[A8], a9: F[A9], a10: F[A10],
-                   a11: F[A11], a12: F[A12], a13: F[A13],
-                   a14: F[A14]): F[ICop[TL]] =
-    d.choose14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(copIso.to(_))
-  def alt[F[_]](implicit a: Alt[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12], a13: F[A13],
-                a14: F[A14]): F[ICop[TL]] =
-    a.altly14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(copIso.from(_))
-  def divide[F[_]](implicit d: Divide[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                   a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                   a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                   a12: F[A12], a13: F[A13], a14: F[A14]): F[IProd[TL]] =
-    d.divide14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(prodIso.to(_))
-  def apply[F[_]](implicit d: Apply[F], a1: F[A1], a2: F[A2], a3: F[A3],
-                  a4: F[A4], a5: F[A5], a6: F[A6], a7: F[A7],
-                  a8: F[A8], a9: F[A9], a10: F[A10], a11: F[A11],
-                  a12: F[A12], a13: F[A13], a14: F[A14]): F[IProd[TL]] =
-    ApplyExt.apply14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(
-      (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14) =>
-        prodIso.from((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14)))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
+                    a13: F[A13], a14: F[A14]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        ApplyExt.apply14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14)))
+    }
 }
