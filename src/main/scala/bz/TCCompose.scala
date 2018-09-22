@@ -486,3 +486,38 @@ trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17)))
     }
 }
+
+trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+           A15, A16, A17, A18] extends TC {
+  type TL = A1 :: A2 :: A3 :: A4 :: A5 :: A6 :: A7 ::
+            A8 :: A9 :: A10 :: A11 :: A12 :: A13 :: A14 ::
+            A15 :: A16 :: A17 :: A18 :: TNil
+  type Cop = (A1 \/ (A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+             (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+             (A15 \/ (A16 \/ (A17 \/ A18)))))))))))))))))
+  type Prod = (A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+               A15, A16, A17, A18)
+  val copIso = iso.IsoSet(
+    Cops.to18(_: ICop[TL]),
+    Cops.from18(_: Cop))
+  val prodIso = iso.IsoSet(
+    Prods.to18T(_: IProd[TL]),
+    Prods.from18T(_: Prod))
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
+                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
+                    a13: F[A13], a14: F[A14], a15: F[A15], a16: F[A16],
+                    a17: F[A17], a18: F[A18]): TCCombine[F, TL, Cop, Prod] =
+    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+      def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
+        d.choose18(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18)(f)
+      def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
+        a.altly18(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18)(f)
+      def mkDivide[B](f: B => Prod)(implicit d: Divide[F]): F[B] =
+        d.divide18(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18)(f)
+      def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
+        ApplyExt.apply18(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18)(
+          (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18) =>
+            f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18)))
+    }
+}
