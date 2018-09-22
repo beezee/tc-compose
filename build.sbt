@@ -28,3 +28,5 @@ lazy val root = (project in file(".")).
       "-Ycache-macro-class-loader:last-modified"),
     name := "tc-compose"
   )
+
+enablePlugins(TutPlugin)
