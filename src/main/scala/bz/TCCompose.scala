@@ -10,9 +10,17 @@ abstract class TCCombine[F[_], TL <: TList, Cop, Prod](
     copIso: (ICop[TL] <=> Cop),
     prodIso: (IProd[TL] <=> Prod)) {
   def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B]
+  def mkChooseI[B](f: B => ICop[TL])(implicit d: Decidable[F]): F[B] =
+    mkChoose(f.andThen(copIso.to))
   def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B]
+  def mkAltI[B](f: ICop[TL] => B)(implicit a: Alt[F]): F[B] =
+    mkAlt(copIso.from.andThen(f))
   def mkDivide[B](f: B => Prod)(implicit a: Divide[F]): F[B]
+  def mkDivideI[B](f: B => IProd[TL])(implicit a: Divide[F]): F[B] =
+    mkDivide(f.andThen(prodIso.to))
   def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B]
+  def mkApplyI[B](f: IProd[TL] => B)(implicit a: Apply[F]): F[B] =
+    mkApply(prodIso.from.andThen(f))
 
   def chooseI(implicit d: Decidable[F]): F[ICop[TL]] = mkChoose(copIso.to(_))
   def choose(implicit d: Decidable[F]): F[Cop] = mkChoose(identity _)
