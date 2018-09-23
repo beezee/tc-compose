@@ -6,34 +6,39 @@ import scala.language.higherKinds
 import scalaz.{Apply, Isomorphism => iso, \/}
 import iso.<=>
 
-abstract class TCCombine[F[_], TL <: TList, Cop, Prod](
-    copIso: (ICop[TL] <=> Cop),
-    prodIso: (IProd[TL] <=> Prod)) {
+abstract class TCCombine[F[_], CopF[_ <: TList], ProdF[_ <: TList], TL <: TList, Cop, Prod](
+    copIso: (CopF[TL] <=> Cop),
+    prodIso: (ProdF[TL] <=> Prod)) {
   def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B]
-  def mkChooseI[B](f: B => ICop[TL])(implicit d: Decidable[F]): F[B] =
+  def mkChooseI[B](f: B => CopF[TL])(implicit d: Decidable[F]): F[B] =
     mkChoose(f.andThen(copIso.to))
   def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B]
-  def mkAltI[B](f: ICop[TL] => B)(implicit a: Alt[F]): F[B] =
+  def mkAltI[B](f: CopF[TL] => B)(implicit a: Alt[F]): F[B] =
     mkAlt(copIso.from.andThen(f))
   def mkDivide[B](f: B => Prod)(implicit a: Divide[F]): F[B]
-  def mkDivideI[B](f: B => IProd[TL])(implicit a: Divide[F]): F[B] =
+  def mkDivideI[B](f: B => ProdF[TL])(implicit a: Divide[F]): F[B] =
     mkDivide(f.andThen(prodIso.to))
   def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B]
-  def mkApplyI[B](f: IProd[TL] => B)(implicit a: Apply[F]): F[B] =
+  def mkApplyI[B](f: ProdF[TL] => B)(implicit a: Apply[F]): F[B] =
     mkApply(prodIso.from.andThen(f))
 
-  def chooseI(implicit d: Decidable[F]): F[ICop[TL]] = mkChoose(copIso.to(_))
+  def chooseI(implicit d: Decidable[F]): F[CopF[TL]] = mkChoose(copIso.to(_))
   def choose(implicit d: Decidable[F]): F[Cop] = mkChoose(identity _)
 
-  def altI(implicit a: Alt[F]): F[ICop[TL]] = mkAlt(copIso.from(_))
+  def altI(implicit a: Alt[F]): F[CopF[TL]] = mkAlt(copIso.from(_))
   def alt(implicit a: Alt[F]): F[Cop] = mkAlt(identity _)
 
-  def divideI(implicit d: Divide[F]): F[IProd[TL]] = mkDivide(prodIso.to(_))
+  def divideI(implicit d: Divide[F]): F[ProdF[TL]] = mkDivide(prodIso.to(_))
   def divide(implicit d: Divide[F]): F[Prod] = mkDivide(identity _)
 
-  def applyI(implicit a: Apply[F]): F[IProd[TL]] = mkApply(prodIso.from(_))
+  def applyI(implicit a: Apply[F]): F[ProdF[TL]] = mkApply(prodIso.from(_))
   def apply(implicit a: Apply[F]): F[Prod] = mkApply(identity _)
 }
+
+abstract class TCCombineI[F[_], TL <: TList, Cop, Prod](
+    copIso: (ICop[TL] <=> Cop),
+    prodIso: (IProd[TL] <=> Prod))
+extends TCCombine[F, ICop, IProd, TL, Cop, Prod](copIso, prodIso)
 
 trait TC {
   type TL <: TList
@@ -66,8 +71,8 @@ trait TC2[A1, A2] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to2T(_: IProd[TL]),
     Prods.from2T(_: Prod))
-  def combine[F[_]](implicit a1: F[A1], a2: F[A2]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose2(a1, a2)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -89,8 +94,8 @@ trait TC3[A1, A2, A3] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to3T(_: IProd[TL]),
     Prods.from3T(_: Prod))
-  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose3(a1, a2, a3)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -112,8 +117,8 @@ trait TC4[A1, A2, A3, A4] extends TC {
   val prodIso = iso.IsoSet(
     Prods.to4T(_: IProd[TL]),
     Prods.from4T(_: Prod))
-  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+  def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose4(a1, a2, a3, a4)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -136,8 +141,8 @@ trait TC5[A1, A2, A3, A4, A5] extends TC {
     Prods.to5T(_: IProd[TL]),
     Prods.from5T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
-                    a5: F[A5]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a5: F[A5]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose5(a1, a2, a3, a4, a5)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -160,8 +165,8 @@ trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
     Prods.to6T(_: IProd[TL]),
     Prods.from6T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
-                    a5: F[A5], a6: F[A6]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a5: F[A5], a6: F[A6]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose6(a1, a2, a3, a4, a5, a6)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -184,8 +189,8 @@ trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
     Prods.to7T(_: IProd[TL]),
     Prods.from7T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
-                    a5: F[A5], a6: F[A6], a7: F[A7]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a5: F[A5], a6: F[A6], a7: F[A7]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose7(a1, a2, a3, a4, a5, a6, a7)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -209,8 +214,8 @@ trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
     Prods.to8T(_: IProd[TL]),
     Prods.from8T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
-                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose8(a1, a2, a3, a4, a5, a6, a7, a8)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -235,8 +240,8 @@ trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
     Prods.from9T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                    a9: F[A9]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a9: F[A9]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -261,8 +266,8 @@ trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
     Prods.from10T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                    a9: F[A9], a10: F[A10]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a9: F[A9], a10: F[A10]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -288,8 +293,8 @@ trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
     Prods.from11T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                    a9: F[A9], a10: F[A10], a11: F[A11]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a9: F[A9], a10: F[A10], a11: F[A11]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -315,8 +320,8 @@ trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
     Prods.from12T(_: Prod))
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
-                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose12(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -345,8 +350,8 @@ trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
-                    a13: F[A13]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a13: F[A13]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose13(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -375,8 +380,8 @@ trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends 
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
-                    a13: F[A13], a14: F[A14]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a13: F[A13], a14: F[A14]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -407,8 +412,8 @@ trait TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] ext
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
-                    a13: F[A13], a14: F[A14], a15: F[A15]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a13: F[A13], a14: F[A14], a15: F[A15]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose15(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -439,8 +444,8 @@ trait TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
   def combine[F[_]](implicit a1: F[A1], a2: F[A2], a3: F[A3], a4: F[A4],
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
-                    a13: F[A13], a14: F[A14], a15: F[A15], a16: F[A16]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a13: F[A13], a14: F[A14], a15: F[A15], a16: F[A16]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose16(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -472,8 +477,8 @@ trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
                     a13: F[A13], a14: F[A14], a15: F[A15], a16: F[A16],
-                    a17: F[A17]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a17: F[A17]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose17(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =
@@ -507,8 +512,8 @@ trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
                     a5: F[A5], a6: F[A6], a7: F[A7], a8: F[A8],
                     a9: F[A9], a10: F[A10], a11: F[A11], a12: F[A12],
                     a13: F[A13], a14: F[A14], a15: F[A15], a16: F[A16],
-                    a17: F[A17], a18: F[A18]): TCCombine[F, TL, Cop, Prod] =
-    new TCCombine[F, TL, Cop, Prod](copIso, prodIso) {
+                    a17: F[A17], a18: F[A18]): TCCombineI[F, TL, Cop, Prod] =
+    new TCCombineI[F, TL, Cop, Prod](copIso, prodIso) {
       def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B] =
         d.choose18(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18)(f)
       def mkAlt[B](f: Cop => B)(implicit a: Alt[F]): F[B] =

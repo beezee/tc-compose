@@ -33,10 +33,10 @@ scala> import scalaz.{Show, \/}
 import scalaz.{Show, $bslash$div}
 
 scala> val SIS = new TC3[String, Int, List[String]] {}
-SIS: bz.TC3[String,Int,List[String]] = $anon$1@1d9ccab7
+SIS: bz.TC3[String,Int,List[String]] = $anon$1@1d19d701
 
 scala> implicit val ds: Decidable[Show] = new Decidable[Show] { def choose2[Z, A1, A2](a1: => Show[A1], a2: =>Show[A2])(f: Z => (A1 \/ A2)): Show[Z] = Show.show[Z]((z: Z) => f(z).fold(a1.show(_), a2.show(_))) }
-ds: bz.Decidable[scalaz.Show] = $anon$1@429c4e4b
+ds: bz.Decidable[scalaz.Show] = $anon$1@297f49ac
 
 scala> SIS.combine[Show].chooseI.show(SIS.inj("foo"))
 res0: scalaz.Cord = "foo"
