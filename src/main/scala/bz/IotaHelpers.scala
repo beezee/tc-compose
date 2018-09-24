@@ -365,6 +365,44 @@ object Cops {
     case 19 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
       \/-(\/-(\/-(\/-(\/-(\/-(c.value.asInstanceOf[A20])))))))))))))))))))
   }
+  def to21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+           A15, A16, A17, A18, A19, A20, A21](
+    c: Cop[A1 :: A2 :: A3 :: A4 :: A5 :: A6 :: A7 ::
+           A8 :: A9 :: A10 :: A11 :: A12 :: A13 :: A14 ::
+           A15 :: A16 :: A17 :: A18 :: A19 :: A20 :: A21 :: TNil]
+  ): A1 \/ (A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+     (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+     (A15 \/ (A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))))))))))) = (c.index: @switch) match {
+    case 0 => -\/(c.value.asInstanceOf[A1])
+    case 1 => \/-(-\/(c.value.asInstanceOf[A2]))
+    case 2 => \/-(\/-(-\/(c.value.asInstanceOf[A3])))
+    case 3 => \/-(\/-(\/-(-\/(c.value.asInstanceOf[A4]))))
+    case 4 => \/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A5])))))
+    case 5 => \/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A6]))))))
+    case 6 => \/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A7])))))))
+    case 7 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A8]))))))))
+    case 8 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A9])))))))))
+    case 9 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A10]))))))))))
+    case 10 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A11])))))))))))
+    case 11 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A12]))))))))))))
+    case 12 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A13])))))))))))))
+    case 13 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      -\/(c.value.asInstanceOf[A14]))))))))))))))
+    case 14 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(-\/(c.value.asInstanceOf[A15])))))))))))))))
+    case 15 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(-\/(c.value.asInstanceOf[A16]))))))))))))))))
+    case 16 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(\/-(-\/(c.value.asInstanceOf[A17])))))))))))))))))
+    case 17 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A18]))))))))))))))))))
+    case 18 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A19])))))))))))))))))))
+    case 19 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(\/-(\/-(\/-(\/-(-\/(c.value.asInstanceOf[A20]))))))))))))))))))))
+    case 20 => \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+      \/-(\/-(\/-(\/-(\/-(\/-(\/-(c.value.asInstanceOf[A21]))))))))))))))))))))
+  }
 
    def from1[A1](e: A1): Cop[A1 :: TNil] = Cop.unsafeApply(0, e)
    def from2[A1, A2](e: A1 \/ A2): Cop[A1 :: A2 :: TNil] = e match {
@@ -742,6 +780,52 @@ object Cops {
           \/-(\/-(\/-(\/-(a20))))))))))))))))))) =>
         Cop.unsafeApply(19, a20)
      }
+   def from21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+              A15, A16, A17, A18, A19, A20, A21](
+     e: A1 \/ (A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+        (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+        (A15 \/ (A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))))))))))))
+   ): Cop[A1 :: A2 :: A3 :: A4 :: A5 :: A6 :: A7 ::
+          A8 :: A9 :: A10 :: A11 :: A12 :: A13 ::
+          A14 :: A15 :: A16 :: A17 :: A18 :: A19 :: A20 :: A21 :: TNil] =
+     e match {
+       case -\/(a1)           => Cop.unsafeApply(0, a1)
+       case \/-(-\/(a2))      => Cop.unsafeApply(1, a2)
+       case \/-(\/-(-\/(a3))) => Cop.unsafeApply(2, a3)
+       case \/-(\/-(\/-(-\/(a4)))) => Cop.unsafeApply(3, a4)
+       case \/-(\/-(\/-(\/-(-\/(a5))))) => Cop.unsafeApply(4, a5)
+       case \/-(\/-(\/-(\/-(\/-(-\/(a6)))))) => Cop.unsafeApply(5, a6)
+       case \/-(\/-(\/-(\/-(\/-(\/-(-\/(a7))))))) => Cop.unsafeApply(6, a7)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a8)))))))) => Cop.unsafeApply(7, a8)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a9))))))))) => Cop.unsafeApply(8, a9)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a10)))))))))) => Cop.unsafeApply(9, a10)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a11))))))))))) => Cop.unsafeApply(10, a11)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a12)))))))))))) => Cop.unsafeApply(11, a12)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a13))))))))))))) =>
+        Cop.unsafeApply(12, a13)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a14)))))))))))))) =>
+        Cop.unsafeApply(13, a14)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(-\/(a15))))))))))))))) =>
+        Cop.unsafeApply(14, a15)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          -\/(a16)))))))))))))))) =>
+        Cop.unsafeApply(15, a16)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          \/-(-\/(a17))))))))))))))))) =>
+        Cop.unsafeApply(16, a17)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          \/-(\/-(-\/(a18)))))))))))))))))) =>
+        Cop.unsafeApply(17, a18)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          \/-(\/-(\/-(-\/(a19))))))))))))))))))) =>
+        Cop.unsafeApply(18, a19)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          \/-(\/-(\/-(\/-(-\/(a20)))))))))))))))))))) =>
+        Cop.unsafeApply(19, a20)
+       case \/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(\/-(
+          \/-(\/-(\/-(\/-(\/-(a21)))))))))))))))))))) =>
+        Cop.unsafeApply(20, a21)
+     }
 }
 
 object Prods {
@@ -871,6 +955,18 @@ object Prods {
         Array(e._1, e._2, e._3, e._4, e._5, e._6, e._7,
               e._8, e._9, e._10, e._11, e._12, e._13, e._14,
               e._15, e._16, e._17, e._18, e._19, e._20)))
+  def from21T[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+              A15, A16, A17, A18, A19, A20, A21](
+    e: (A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+        A15, A16, A17, A18, A19, A20, A21)
+  ): Prod[A1 :: A2 :: A3 :: A4 :: A5 :: A6 :: A7 ::
+          A8 :: A9 :: A10 :: A11 :: A12 :: A13 :: A14 ::
+          A15 :: A16 :: A17 :: A18 :: A19 :: A20 :: A21 :: TNil] =
+    Prod.unsafeApply(
+      new ArraySeq(
+        Array(e._1, e._2, e._3, e._4, e._5, e._6, e._7,
+              e._8, e._9, e._10, e._11, e._12, e._13, e._14,
+              e._15, e._16, e._17, e._18, e._19, e._20, e._21)))
 
   def to1T[A1](a: Prod[A1 :: TNil]): A1 = a.values(0).asInstanceOf[A1]
   def to2T[A1, A2](a: Prod[A1 :: A2 :: TNil]): (A1, A2) = (
@@ -1154,4 +1250,32 @@ object Prods {
     a.values(17).asInstanceOf[A18],
     a.values(18).asInstanceOf[A19],
     a.values(19).asInstanceOf[A20])
+  def to21T[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+            A15, A16, A17, A18, A19, A20, A21](
+    a: Prod[A1 :: A2 :: A3 :: A4 :: A5 :: A6 :: A7 ::
+            A8 :: A9 :: A10 :: A11 :: A12 :: A13 :: A14 ::
+            A15 :: A16 :: A17 :: A18 :: A19 :: A20 :: A21 :: TNil]
+  ): (A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+      A15, A16, A17, A18, A19, A20, A21) = (
+    a.values(0).asInstanceOf[A1],
+    a.values(1).asInstanceOf[A2],
+    a.values(2).asInstanceOf[A3],
+    a.values(3).asInstanceOf[A4],
+    a.values(4).asInstanceOf[A5],
+    a.values(5).asInstanceOf[A6],
+    a.values(6).asInstanceOf[A7],
+    a.values(7).asInstanceOf[A8],
+    a.values(8).asInstanceOf[A9],
+    a.values(9).asInstanceOf[A10],
+    a.values(10).asInstanceOf[A11],
+    a.values(11).asInstanceOf[A12],
+    a.values(12).asInstanceOf[A13],
+    a.values(13).asInstanceOf[A14],
+    a.values(14).asInstanceOf[A15],
+    a.values(15).asInstanceOf[A16],
+    a.values(16).asInstanceOf[A17],
+    a.values(17).asInstanceOf[A18],
+    a.values(18).asInstanceOf[A19],
+    a.values(19).asInstanceOf[A20],
+    a.values(20).asInstanceOf[A21])
 }

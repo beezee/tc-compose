@@ -25,7 +25,8 @@ lazy val root = (project in file(".")).
       "-Ybackend-parallelism", java.lang.Runtime.getRuntime.availableProcessors.toString,
       "-Ycache-plugin-class-loader:last-modified",
       //"-Xlog-implicits",
-      "-Ycache-macro-class-loader:last-modified"),
+      "-Ycache-macro-class-loader:last-modified",
+      "-Ymacro-debug-lite"),
     name := "tc-compose"
   )
 
