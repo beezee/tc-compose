@@ -1,9 +1,8 @@
 package bz
 
 import scala.language.higherKinds
-import scalaz.{Apply, Isomorphism => iso, \/}
+import scalaz.{Apply, \/}
 import scalaz.syntax.either._
-import iso.<=>
 
 trait Inj[Cop, A] {
   def apply(a: A): Cop

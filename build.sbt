@@ -18,7 +18,7 @@ lazy val root = (project in file(".")).
       "-Ywarn-nullary-override",
       "-Ywarn-nullary-unit",
       "-Ywarn-numeric-widen",
-      "-Ywarn-unused:privates,locals",
+      "-Ywarn-unused:imports,privates,locals",
       "-Ywarn-value-discard",
       "-Xfuture",
       "-Ybackend-parallelism", java.lang.Runtime.getRuntime.availableProcessors.toString,
