@@ -4,7 +4,6 @@ lazy val root = (project in file(".")).
     organization := "bz",
     scalaVersion := "2.12.5",
     libraryDependencies ++= Seq(
-      "io.frees" %% "iotaz-core" % "0.3.10",
       "org.scalaz" %% "scalaz-core" % "7.2.17"),
     scalacOptions ++= Seq(
       "-deprecation",
