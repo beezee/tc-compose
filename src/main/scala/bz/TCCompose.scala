@@ -2,7 +2,32 @@ package bz
 
 import scala.language.higherKinds
 import scalaz.{Apply, Isomorphism => iso, \/}
+import scalaz.syntax.either._
 import iso.<=>
+
+trait Inj[Cop, A] {
+  def apply(a: A): Cop
+}
+
+object Inj {
+
+  trait Aux[Cop] {
+    type Out[A] = Inj[Cop, A]
+  }
+
+  def instance[A, B](ab: A => B): Inj[B, A] = new Inj[B, A] {
+    def apply(a: A): B = ab(a)
+  }
+
+  implicit def decidableInj[Cop]: Decidable[Aux[Cop]#Out] =
+    new Decidable[Aux[Cop]#Out] {
+      type I[A] = Aux[Cop]#Out[A]
+      def choose2[Z, A1, A2](a1: =>I[A1], a2: =>I[A2])(f: Z => (A1 \/ A2)): I[Z] =
+        new Inj[Cop, Z] {
+          def apply(z: Z): Cop = f(z).fold(a1.apply(_), a2.apply(_))
+        }
+    }
+}
 
 abstract class TCCombine[F[_], Cop, Prod] {
   def mkChoose[B](f: B => Cop)(implicit d: Decidable[F]): F[B]
@@ -22,11 +47,14 @@ abstract class TCCombine[F[_], Cop, Prod] {
 trait TC {
   type Cop
   type Prod
+  val injEv: Inj[Cop, Cop]
+  def inj[A](a: A)(implicit inj: Inj[Cop, A]): Cop = inj(a)
 }
 
 trait TC1[A1] extends TC {
   type Cop = A1
   type Prod = A1
+  val injEv = Inj.instance(identity[A1] _)
 }
 
 trait TC2[A1, A2] extends TC {
@@ -43,6 +71,9 @@ trait TC2[A1, A2] extends TC {
       def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
         a.apply2(a1, a2)((a, b) => f((a, b)))
     }
+  implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2])
+  implicit val inja2: Inj[Cop, A2] = Inj.instance(_.right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC3[A1, A2, A3] extends TC {
@@ -59,6 +90,10 @@ trait TC3[A1, A2, A3] extends TC {
       def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
         a.apply3(a1, a2, a3)((a, b, c) => f((a, b, c)))
     }
+  implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2 \/ A3])
+  implicit val inja2: Inj[Cop, A2] = Inj.instance(_.left[A3].right[A1])
+  implicit val inja3: Inj[Cop, A3] = Inj.instance(_.right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC4[A1, A2, A3, A4] extends TC {
@@ -75,6 +110,11 @@ trait TC4[A1, A2, A3, A4] extends TC {
       def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
         a.apply4(a1, a2, a3, a4)((i1, i2, i3, i4) => f((i1, i2, i3, i4)))
     }
+  implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2 \/ (A3 \/ A4)])
+  implicit val inja2: Inj[Cop, A2] = Inj.instance(_.left[A3 \/ A4].right[A1])
+  implicit val inja3: Inj[Cop, A3] = Inj.instance(_.left[A4].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] = Inj.instance(_.right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC5[A1, A2, A3, A4, A5] extends TC {
@@ -92,6 +132,12 @@ trait TC5[A1, A2, A3, A4, A5] extends TC {
       def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
         a.apply5(a1, a2, a3, a4, a5)((i1, i2, i3, i4, i5) => f((i1, i2, i3, i4, i5)))
     }
+  implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ A5))])
+  implicit val inja2: Inj[Cop, A2] = Inj.instance(_.left[A3 \/ (A4 \/ A5)].right[A1])
+  implicit val inja3: Inj[Cop, A3] = Inj.instance(_.left[A4 \/ A5].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] = Inj.instance(_.left[A5].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] = Inj.instance(_.right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
@@ -109,6 +155,13 @@ trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
       def mkApply[B](f: Prod => B)(implicit a: Apply[F]): F[B] =
         a.apply6(a1, a2, a3, a4, a5, a6)((i1, i2, i3, i4, i5, i6) => f((i1, i2, i3, i4, i5, i6)))
     }
+  implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ A6)))])
+  implicit val inja2: Inj[Cop, A2] = Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ A6))].right[A1])
+  implicit val inja3: Inj[Cop, A3] = Inj.instance(_.left[A4 \/ (A5 \/ A6)].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] = Inj.instance(_.left[A5 \/ A6].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] = Inj.instance(_.left[A6].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] = Inj.instance(_.right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
@@ -127,6 +180,21 @@ trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
         a.apply7(a1, a2, a3, a4, a5, a6, a7)(
           (i1, i2, i3, i4, i5, i6, i7) => f((i1, i2, i3, i4, i5, i6, i7)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ A7))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ A7)))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ A7))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ A7)].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ A7].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
@@ -145,6 +213,23 @@ trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
         a.apply8(a1, a2, a3, a4, a5, a6, a7, a8)(
           (i1, i2, i3, i4, i5, i6, i7, i8) => f((i1, i2, i3, i4, i5, i6, i7, i8)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ A8)))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ A8))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/ A8)))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/ A8))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/ A8)].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/ A8].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
@@ -164,6 +249,25 @@ trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
         a.apply9(a1, a2, a3, a4, a5, a6, a7, a8, a9)(
           (i1, i2, i3, i4, i5, i6, i7, i8, i9) => f((i1, i2, i3, i4, i5, i6, i7, i8, i9)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ A9))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ A9)))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ A9))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/ (A8 \/ A9)))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/ (A8 \/ A9))].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/ (A8 \/ A9)].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ A9].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.right[A8].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
@@ -184,6 +288,27 @@ trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ (A9 \/ A10)))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ (A9 \/ A10))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/ (A8 \/ (A9 \/ A10)))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/ (A8 \/ (A9 \/ A10))))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/ (A8 \/ (A9 \/ A10)))].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/ (A8 \/ (A9 \/ A10))].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ A10)].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ A10].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10].right[A8].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.right[A9].right[A8].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
@@ -204,6 +329,40 @@ trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11)))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11)))))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11))))].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ A11)))].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ A11))].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ A11)].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ A11].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
@@ -224,6 +383,43 @@ trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12)))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12)))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12))))))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12)))))].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ A12))))].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ A12)))].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ A12))].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ A12)].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ A12].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[A12].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.right[A11].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
@@ -246,6 +442,46 @@ trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13)))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13)))))))].right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13))))))].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13)))))].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ A13))))].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ A13)))].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ A13))].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ A13)].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ A13)].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[A13].right[A11].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.right[A12].right[A11].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends TC {
@@ -268,6 +504,53 @@ trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends 
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14)))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14)))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14)))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14)))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ A14))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ A14)))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ A14))].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ A14))].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ A14)].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[A14].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] extends TC {
@@ -291,6 +574,56 @@ trait TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] ext
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15)))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15)))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15)))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15)))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/A15))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/A15)))].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/A15)))].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/A15))].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/A15)].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[A15].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16] extends TC {
@@ -314,6 +647,59 @@ trait TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16)))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16)))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16)))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16)))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16)))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/A16))))].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/(A15 \/A16))))].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/(A15 \/A16)))].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/A16))].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/A16)].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[A16].right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.right[A15].right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17] extends TC {
@@ -338,6 +724,78 @@ trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17)))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17)))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ A17)))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ A17))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ A17)))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ A17))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ A17)))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ A17)))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/(A15 \/(A16 \/ A17))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ A17)))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ A17))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ A17)]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[A17].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -364,6 +822,82 @@ trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18)))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18))))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18)))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18))))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18)))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ A18))))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ A18)))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ A18))))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ A18)))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ A18))))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ A18))))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ A18)))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ (A17 \/ A18))))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ (A17 \/ A18)))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ (A17 \/ A18))]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[(A17 \/ A18)].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.left[A18].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja18: Inj[Cop, A18] =
+    Inj.instance(_.right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -394,6 +928,86 @@ trait TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
           (i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19) =>
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ A19)))))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ (A17 \/ (A18 \/ A19))))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ (A17 \/ (A18 \/ A19)))]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[(A17 \/ (A18 \/ A19))].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.left[(A18 \/ A19)].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja18: Inj[Cop, A18] =
+    Inj.instance(_.left[A19].right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja19: Inj[Cop, A19] =
+    Inj.instance(_.right[A18].right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -426,6 +1040,90 @@ trait TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14,
                i15, i16, i17, i18, i19, i20)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/ (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20)))))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ (A17 \/ (A18 \/ (A19 \/ A20))))]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[(A17 \/ (A18 \/ (A19 \/ A20)))].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.left[(A18 \/ (A19 \/ A20))].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja18: Inj[Cop, A18] =
+    Inj.instance(_.left[(A19 \/ A20)].right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja19: Inj[Cop, A19] =
+    Inj.instance(_.left[A20].right[A18].right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja20: Inj[Cop, A20] =
+    Inj.instance(_.right[A19].right[A18].right[A17].right[A16].right[A15].right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -459,6 +1157,104 @@ trait TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14,
                i15, i16, i17, i18, i19, i20, i21)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ A21)))))]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[(A17 \/ (A18 \/ (A19 \/ (A20 \/ A21))))].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.left[(A18 \/ (A19 \/ (A20 \/ A21)))].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja18: Inj[Cop, A18] =
+    Inj.instance(_.left[(A19 \/ (A20 \/ A21))].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja19: Inj[Cop, A19] =
+    Inj.instance(_.left[(A20 \/ A21)].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja20: Inj[Cop, A20] =
+    Inj.instance(_.left[A21].right[A19].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja21: Inj[Cop, A21] =
+    Inj.instance(_.right[A20].right[A19].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
 
 trait TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -492,4 +1288,107 @@ trait TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
             f((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14,
                i15, i16, i17, i18, i19, i20, i21, i22)))
     }
+  implicit val inja1: Inj[Cop, A1] =
+    Inj.instance(_.left[A2 \/ (A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))))))))))))])
+  implicit val inja2: Inj[Cop, A2] =
+    Inj.instance(_.left[A3 \/ (A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))))))))))].right[A1])
+  implicit val inja3: Inj[Cop, A3] =
+    Inj.instance(_.left[A4 \/ (A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))))))))))].right[A2].right[A1])
+  implicit val inja4: Inj[Cop, A4] =
+    Inj.instance(_.left[A5 \/ (A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))))))))]
+      .right[A3].right[A2].right[A1])
+  implicit val inja5: Inj[Cop, A5] =
+    Inj.instance(_.left[A6 \/ (A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))))))))]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja6: Inj[Cop, A6] =
+    Inj.instance(_.left[A7 \/
+      (A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+      (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))))))]
+      .right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja7: Inj[Cop, A7] =
+    Inj.instance(_.left[A8 \/ (A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))))))]
+      .right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja8: Inj[Cop, A8] =
+    Inj.instance(_.left[A9 \/ (A10 \/ (A11 \/ (A12 \/ (A13 \/ (A14 \/
+    (A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))))]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja9: Inj[Cop, A9] =
+    Inj.instance(_.left[A10 \/ (A11 \/ (A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))))]
+      .right[A8].right[A7].right[A6].right[A5]
+      .right[A4].right[A3].right[A2].right[A1])
+  implicit val inja10: Inj[Cop, A10] =
+    Inj.instance(_.left[A11 \/ (A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))]
+      .right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja11: Inj[Cop, A11] =
+    Inj.instance(_.left[(A12 \/ (A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))))]
+      .right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja12: Inj[Cop, A12] =
+    Inj.instance(_.left[(A13 \/
+    (A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))))]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja13: Inj[Cop, A13] =
+    Inj.instance(_.left[(A14 \/(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))))]
+      .right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja14: Inj[Cop, A14] =
+    Inj.instance(_.left[(A15 \/(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))))]
+      .right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja15: Inj[Cop, A15] =
+    Inj.instance(_.left[(A16 \/ (A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))))]
+      .right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja16: Inj[Cop, A16] =
+    Inj.instance(_.left[(A17 \/ (A18 \/ (A19 \/ (A20 \/ (A21 \/ A22)))))].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja17: Inj[Cop, A17] =
+    Inj.instance(_.left[(A18 \/ (A19 \/ (A20 \/ (A21 \/ A22))))].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja18: Inj[Cop, A18] =
+    Inj.instance(_.left[(A19 \/ (A20 \/ (A21 \/ A22)))].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja19: Inj[Cop, A19] =
+    Inj.instance(_.left[(A20 \/ (A21 \/ A22))].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja20: Inj[Cop, A20] =
+    Inj.instance(_.left[(A21 \/ A22)].right[A19].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja21: Inj[Cop, A21] =
+    Inj.instance(_.left[A22].right[A20].right[A19].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  implicit val inja22: Inj[Cop, A22] =
+    Inj.instance(_.right[A21].right[A20].right[A19].right[A18].right[A17].right[A16].right[A15]
+      .right[A14].right[A13].right[A12]
+      .right[A11].right[A10].right[A9].right[A8]
+      .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
+  val injEv = combine[Inj.Aux[Cop]#Out].choose
 }
