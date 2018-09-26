@@ -50,6 +50,173 @@ trait TC {
   def inj[A](a: A)(implicit inj: Inj[Cop, A]): Cop = inj(a)
 }
 
+object TC {
+  def combine[A1]: TC1[A1] = new TC1[A1] {}
+  def combineK[F[_], A1]: TC1[F[A1]] = new TC1[F[A1]] {}
+  def combine[A1, A2]: TC2[A1, A2] = new TC2[A1, A2] {}
+  def combineK[F[_], A1, A2]: TC2[F[A1], F[A2]] = new TC2[F[A1], F[A2]] {}
+  def combine[A1, A2, A3]: TC3[A1, A2, A3] = new TC3[A1, A2, A3] {}
+  def combineK[F[_], A1, A2, A3]: TC3[F[A1], F[A2], F[A3]] =
+    new TC3[F[A1], F[A2], F[A3]] {}
+  def combine[A1, A2, A3, A4]: TC4[A1, A2, A3, A4] = new TC4[A1, A2, A3, A4] {}
+  def combineK[F[_], A1, A2, A3, A4]: TC4[F[A1], F[A2], F[A3], F[A4]] =
+    new TC4[F[A1], F[A2], F[A3], F[A4]] {}
+  def combine[A1, A2, A3, A4, A5]: TC5[A1, A2, A3, A4, A5] =
+    new TC5[A1, A2, A3, A4, A5] {}
+  def combineK[F[_], A1, A2, A3, A4, A5]: TC5[F[A1], F[A2], F[A3], F[A4], F[A5]] =
+    new TC5[F[A1], F[A2], F[A3], F[A4], F[A5]] {}
+  def combine[A1, A2, A3, A4, A5, A6]: TC6[A1, A2, A3, A4, A5, A6] =
+    new TC6[A1, A2, A3, A4, A5, A6] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6]: TC6[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6]] =
+    new TC6[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7]:
+  TC7[A1, A2, A3, A4, A5, A6, A7] =
+    new TC7[A1, A2, A3, A4, A5, A6, A7] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7]:
+  TC7[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7]] =
+    new TC7[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8]:
+  TC8[A1, A2, A3, A4, A5, A6, A7, A8] =
+    new TC8[A1, A2, A3, A4, A5, A6, A7, A8] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8]:
+  TC8[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8]] =
+    new TC8[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9]:
+  TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] =
+    new TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9]:
+  TC9[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9]] =
+    new TC9[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10]:
+  TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] =
+    new TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10]:
+  TC10[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10]] =
+    new TC10[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11]:
+  TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] =
+    new TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11]:
+  TC11[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10], F[A11]] =
+    new TC11[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10], F[A11]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12]:
+  TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] =
+    new TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12]:
+  TC12[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10], F[A11], F[A12]] =
+    new TC12[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10], F[A11], F[A12]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13]:
+  TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] =
+    new TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13]:
+  TC13[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10], F[A11], F[A12], F[A13]] =
+    new TC13[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14]:
+  TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] =
+    new TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14]:
+  TC14[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14]] =
+    new TC14[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15]:
+  TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] =
+    new TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15]:
+  TC15[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15]] =
+    new TC15[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16]:
+  TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16] =
+    new TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16]:
+  TC16[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16]] =
+    new TC16[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17]:
+  TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17] =
+    new TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17]:
+  TC17[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17]] =
+    new TC17[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17, A18]:
+  TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18] =
+    new TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17, A18] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17, A18]:
+  TC18[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18]] =
+    new TC18[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17, A18, A19]:
+  TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19] =
+    new TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17, A18, A19] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17, A18, A19]:
+  TC19[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19]] =
+    new TC19[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17, A18, A19, A20]:
+  TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+       A15, A16, A17, A18, A19, A20] =
+    new TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17, A18, A19, A20] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17, A18, A19, A20]:
+  TC20[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19], F[A20]] =
+    new TC20[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19], F[A20]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21]:
+  TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+       A15, A16, A17, A18, A19, A20, A21] =
+    new TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21]:
+  TC21[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19], F[A20], F[A21]] =
+    new TC21[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18], F[A19], F[A20], F[A21]] {}
+  def combine[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+              A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22]:
+  TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
+       A15, A16, A17, A18, A19, A20, A21, A22] =
+    new TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+             A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22] {}
+  def combineK[F[_], A1, A2, A3, A4, A5, A6, A7, A8, A9, A10,
+               A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22]:
+  TC22[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9],
+       F[A10], F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17],
+       F[A18], F[A19], F[A20], F[A21], F[A22]] =
+    new TC22[F[A1], F[A2], F[A3], F[A4], F[A5], F[A6], F[A7], F[A8], F[A9], F[A10],
+             F[A11], F[A12], F[A13], F[A14], F[A15], F[A16], F[A17], F[A18],
+             F[A19], F[A20], F[A21], F[A22]] {}
+}
+
 trait TC1[A1] extends TC {
   type Cop = A1
   type Prod = A1
