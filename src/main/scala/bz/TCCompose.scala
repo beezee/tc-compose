@@ -1,7 +1,7 @@
 package bz
 
 import scala.language.higherKinds
-import scalaz.{Apply, \/}
+import scalaz.{Apply, \/, Monoid, Semigroup}
 import scalaz.syntax.either._
 
 trait Inj[Cop, A] {
@@ -26,6 +26,21 @@ object Inj {
           def apply(z: Z): Cop = f(z).fold(a1.apply(_), a2.apply(_))
         }
     }
+
+  implicit def divideInj[Prod](implicit S: Semigroup[Prod]): Divide[Aux[Prod]#Out] =
+    new Divide[Aux[Prod]#Out] {
+      type I[A] = Aux[Prod]#Out[A]
+      def contramap[A, B](ia: I[A])(f: B => A): I[B] = new Inj[Prod, B] {
+        def apply(b: B): Prod = ia(f(b))
+      }
+      def divide2[A1, A2, Z](a1: =>I[A1], a2: =>I[A2])(f: Z => (A1, A2)): I[Z] =
+        new Inj[Prod, Z] {
+          def apply(z: Z): Prod = {
+            val (i1, i2) = f(z)
+            S.append(a1(i1), a2(i2))
+          }
+        }
+    }
 }
 
 abstract class TCCombine[F[_], Cop, Prod] {
@@ -48,6 +63,8 @@ trait TC {
   type Prod
   val injEv: Inj[Cop, Cop]
   def inj[A](a: A)(implicit inj: Inj[Cop, A]): Cop = inj(a)
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod]
+  def lift[A](a: A)(implicit inj: Inj[Prod, A]): Prod = inj(a)
 }
 
 object TC {
@@ -221,6 +238,7 @@ trait TC1[A1] extends TC {
   type Cop = A1
   type Prod = A1
   val injEv = Inj.instance(identity[A1] _)
+  def liftEv(implicit M: Monoid[Prod]) = injEv
 }
 
 trait TC2[A1, A2] extends TC {
@@ -240,6 +258,17 @@ trait TC2[A1, A2] extends TC {
   implicit val inja1: Inj[Cop, A1] = Inj.instance(_.left[A2])
   implicit val inja2: Inj[Cop, A2] = Inj.instance(_.right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2) = M.zero
+    Inj.instance((_, a2))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _) = M.zero
+    Inj.instance((a1, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
+
 }
 
 trait TC3[A1, A2, A3] extends TC {
@@ -260,6 +289,20 @@ trait TC3[A1, A2, A3] extends TC {
   implicit val inja2: Inj[Cop, A2] = Inj.instance(_.left[A3].right[A1])
   implicit val inja3: Inj[Cop, A3] = Inj.instance(_.right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3) = M.zero
+    Inj.instance((_, a2, a3))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3) = M.zero
+    Inj.instance((a1, _, a3))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _) = M.zero
+    Inj.instance((a1, a2, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC4[A1, A2, A3, A4] extends TC {
@@ -281,6 +324,24 @@ trait TC4[A1, A2, A3, A4] extends TC {
   implicit val inja3: Inj[Cop, A3] = Inj.instance(_.left[A4].right[A2].right[A1])
   implicit val inja4: Inj[Cop, A4] = Inj.instance(_.right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4) = M.zero
+    Inj.instance((_, a2, a3, a4))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4) = M.zero
+    Inj.instance((a1, _, a3, a4))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4) = M.zero
+    Inj.instance((a1, a2, _, a4))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _) = M.zero
+    Inj.instance((a1, a2, a3, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC5[A1, A2, A3, A4, A5] extends TC {
@@ -304,6 +365,28 @@ trait TC5[A1, A2, A3, A4, A5] extends TC {
   implicit val inja4: Inj[Cop, A4] = Inj.instance(_.left[A5].right[A3].right[A2].right[A1])
   implicit val inja5: Inj[Cop, A5] = Inj.instance(_.right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5) = M.zero
+    Inj.instance((_, a2, a3, a4, a5))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5) = M.zero
+    Inj.instance((a1, _, a3, a4, a5))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5) = M.zero
+    Inj.instance((a1, a2, _, a4, a5))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5) = M.zero
+    Inj.instance((a1, a2, a3, _, a5))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
@@ -328,6 +411,32 @@ trait TC6[A1, A2, A3, A4, A5, A6] extends TC {
   implicit val inja5: Inj[Cop, A5] = Inj.instance(_.left[A6].right[A4].right[A3].right[A2].right[A1])
   implicit val inja6: Inj[Cop, A6] = Inj.instance(_.right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
@@ -361,6 +470,36 @@ trait TC7[A1, A2, A3, A4, A5, A6, A7] extends TC {
   implicit val inja7: Inj[Cop, A7] =
     Inj.instance(_.right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
@@ -396,6 +535,40 @@ trait TC8[A1, A2, A3, A4, A5, A6, A7, A8] extends TC {
   implicit val inja8: Inj[Cop, A8] =
     Inj.instance(_.right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
@@ -434,6 +607,44 @@ trait TC9[A1, A2, A3, A4, A5, A6, A7, A8, A9] extends TC {
   implicit val inja9: Inj[Cop, A9] =
     Inj.instance(_.right[A8].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
@@ -475,6 +686,48 @@ trait TC10[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10] extends TC {
   implicit val inja10: Inj[Cop, A10] =
     Inj.instance(_.right[A9].right[A8].right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
@@ -529,6 +782,52 @@ trait TC11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] extends TC {
     Inj.instance(_.right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
       .right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
@@ -586,6 +885,56 @@ trait TC12[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12] extends TC {
     Inj.instance(_.right[A11].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
       .right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
@@ -648,6 +997,60 @@ trait TC13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13] extends TC {
     Inj.instance(_.right[A12].right[A11].right[A10].right[A9].right[A8].right[A7].right[A6].right[A5]
       .right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends TC {
@@ -717,6 +1120,64 @@ trait TC14[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14] extends 
     Inj.instance(_.right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] extends TC {
@@ -790,6 +1251,68 @@ trait TC15[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15] ext
     Inj.instance(_.right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16] extends TC {
@@ -866,6 +1389,72 @@ trait TC16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
     Inj.instance(_.right[A15].right[A14].right[A13].right[A12].right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17] extends TC {
@@ -962,6 +1551,76 @@ trait TC17[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -1064,6 +1723,80 @@ trait TC18[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18))
+  }
+  implicit def lifta18(implicit M: Monoid[Prod]): Inj[Prod, A18] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -1174,6 +1907,84 @@ trait TC19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18, a19))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18, a19))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18, a19))
+  }
+  implicit def lifta18(implicit M: Monoid[Prod]): Inj[Prod, A18] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _, a19) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _, a19))
+  }
+  implicit def lifta19(implicit M: Monoid[Prod]): Inj[Prod, A19] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -1290,6 +2101,88 @@ trait TC20[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _, a15, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, _, a17, a18, a19, a20))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, _, a18, a19, a20))
+  }
+  implicit def lifta18(implicit M: Monoid[Prod]): Inj[Prod, A18] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _, a19, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, _, a19, a20))
+  }
+  implicit def lifta19(implicit M: Monoid[Prod]): Inj[Prod, A19] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, _, a20) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, _, a20))
+  }
+  implicit def lifta20(implicit M: Monoid[Prod]): Inj[Prod, A20] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -1421,6 +2314,132 @@ trait TC21[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14,
+			a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14,
+			a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _,
+			a15, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _,
+			a15, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, _, a17, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, _, a17, a18, a19, a20, a21))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, _, a18, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, _, a18, a19, a20, a21))
+  }
+  implicit def lifta18(implicit M: Monoid[Prod]): Inj[Prod, A18] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, _, a19, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, _, a19, a20, a21))
+  }
+  implicit def lifta19(implicit M: Monoid[Prod]): Inj[Prod, A19] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, _, a20, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, _, a20, a21))
+  }
+  implicit def lifta20(implicit M: Monoid[Prod]): Inj[Prod, A20] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, _, a21) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, _, a21))
+  }
+  implicit def lifta21(implicit M: Monoid[Prod]): Inj[Prod, A21] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
 
 trait TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
@@ -1557,4 +2576,136 @@ trait TC22[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14,
       .right[A11].right[A10].right[A9].right[A8]
       .right[A7].right[A6].right[A5].right[A4].right[A3].right[A2].right[A1])
   val injEv = combine[Inj.Aux[Cop]#Out].choose
+
+  implicit def lifta1(implicit M: Monoid[Prod]): Inj[Prod, A1] = {
+    val (_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((_, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta2(implicit M: Monoid[Prod]): Inj[Prod, A2] = {
+    val (a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, _, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta3(implicit M: Monoid[Prod]): Inj[Prod, A3] = {
+    val (a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, _, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta4(implicit M: Monoid[Prod]): Inj[Prod, A4] = {
+    val (a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, _, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta5(implicit M: Monoid[Prod]): Inj[Prod, A5] = {
+    val (a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, _, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta6(implicit M: Monoid[Prod]): Inj[Prod, A6] = {
+    val (a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, _, a7, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta7(implicit M: Monoid[Prod]): Inj[Prod, A7] = {
+    val (a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, _, a8, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta8(implicit M: Monoid[Prod]): Inj[Prod, A8] = {
+    val (a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, _, a9, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta9(implicit M: Monoid[Prod]): Inj[Prod, A9] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, _, a10, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta10(implicit M: Monoid[Prod]): Inj[Prod, A10] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, _, a11, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta11(implicit M: Monoid[Prod]): Inj[Prod, A11] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, _, a12, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta12(implicit M: Monoid[Prod]): Inj[Prod, A12] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, _, a13, a14,
+      a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta13(implicit M: Monoid[Prod]): Inj[Prod, A13] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14,
+			a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, _, a14,
+			a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta14(implicit M: Monoid[Prod]): Inj[Prod, A14] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _,
+			a15, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, _,
+			a15, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta15(implicit M: Monoid[Prod]): Inj[Prod, A15] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, _, a16, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta16(implicit M: Monoid[Prod]): Inj[Prod, A16] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, _, a17, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, _, a17, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta17(implicit M: Monoid[Prod]): Inj[Prod, A17] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, _, a18, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, _, a18, a19, a20, a21, a22))
+  }
+  implicit def lifta18(implicit M: Monoid[Prod]): Inj[Prod, A18] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, _, a19, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, _, a19, a20, a21, a22))
+  }
+  implicit def lifta19(implicit M: Monoid[Prod]): Inj[Prod, A19] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, _, a20, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, _, a20, a21, a22))
+  }
+  implicit def lifta20(implicit M: Monoid[Prod]): Inj[Prod, A20] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, _, a21, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, _, a21, a22))
+  }
+  implicit def lifta21(implicit M: Monoid[Prod]): Inj[Prod, A21] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, _, a22) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, _, a22))
+  }
+  implicit def lifta22(implicit M: Monoid[Prod]): Inj[Prod, A22] = {
+    val (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, a21, _) = M.zero
+    Inj.instance((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+			a15, a16, a17, a18, a19, a20, a21, _))
+  }
+  def liftEv(implicit M: Monoid[Prod]): Inj[Prod, Prod] = combine[Inj.Aux[Prod]#Out].divide
 }
